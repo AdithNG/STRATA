@@ -1,0 +1,4 @@
+langgraph>=0.2
+pytest>=8.0
+# Optional: only needed if STRATA_USE_LLM=1 to route NL parsing through Claude.
+# anthropic>=0.40

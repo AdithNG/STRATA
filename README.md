@@ -1,0 +1,91 @@
+# STRATA — LangGraph agent
+
+A small, runnable LangGraph implementation of the STRATA proposal
+([TSAGENT_EVOLVE_SKILLS.md](TSAGENT_EVOLVE_SKILLS.md)): split a skill into a
+**frozen, environment-agnostic procedure core** and a **typed, per-environment
+convention adapter**, so adapting to a new data environment costs only the price
+of re-fitting the adapter and can never corrupt the verified procedure.
+
+The demo instantiates Appendix A: the cross-site clinical cohort-count question,
+transferred from **MIMIC-III** to **eICU** by re-fitting only the adapter.
+
+> *"How many distinct patients were diagnosed with `{condition}` within `{N}`
+> days of admission?"*
+
+## What's here
+
+| Piece | File | Role |
+|-------|------|------|
+| Typed IR + **decidable cut** | [strata/ir.py](strata/ir.py) | The skill as an ordered IR; a static taint rule that labels each unit `core` / `adapter` / `unclassifiable` |
+| Convention adapters | [strata/adapters.py](strata/adapters.py) | MIMIC-III and eICU bindings — the only thing that changes between sites |
+| SQL compiler | [strata/compiler.py](strata/compiler.py) | Composes `core → adapter_c` into executable SQL |
+| Execution verifier | [strata/verifier.py](strata/verifier.py) | Runs the SQL and enforces the core's sanity check |
+| Synthetic databases | [strata/db.py](strata/db.py) | MIMIC-III- and eICU-shaped SQLite fixtures |
+| **LangGraph agent** | [strata/graph.py](strata/graph.py) | `parse → cut → bind_adapter → compile → verify → respond` |
+| NL parsing | [strata/nlu.py](strata/nlu.py) | Deterministic by default; optional Claude path |
+| Demo | [demo.py](demo.py) | The full MIMIC-III → eICU walkthrough |
+| Tests | [tests/](tests/) | Cut classification, transfer, and zero-interference |
+
+## The agent graph
+
+```
+parse_task → apply_cut → bind_adapter → compile → execute_verify → respond
+                                                          └─(sanity failed)→ flag
+```
+
+Re-targeting the skill to a new site changes only which adapter `bind_adapter`
+selects. The frozen core, the cut, and every other node are unchanged — that is
+the mechanism, made executable.
+
+## The decidable cut
+
+A unit belongs to the **adapter** iff its operation's purpose is to instantiate a
+typed environment constant (`resolve` a vocabulary, pick a `table`). Every
+procedure-algebra op (`join`, `filter`, `dedup`, `count_distinct`, `assert`) is
+**core** — the reusable discipline — even when it references a slot as a typed
+hole (the join key, the dialect time predicate). A procedure step whose *control
+flow* depends on an environment constant is **unclassifiable** — the decidability
+limit the proposal reports honestly, counted rather than forced into the adapter.
+
+For the cohort-count skill the cut yields a 5-of-8 core-mass: `join`,
+`filter_window`, `dedup`, `count`, `sanity` are frozen; only `resolve_codes`,
+`pick_dx`, `pick_adm` re-fit per site.
+
+## What the demo shows
+
+- **Correct, deduplicated counts** — MIMIC-III returns 5 distinct patients from 8
+  diagnosis rows; eICU returns 3. The dedup discipline (which a naive from-scratch
+  attempt tends to get wrong) is frozen, not relearned.
+- **Adaptation cost** — 0 core steps re-optimized on transfer; only the ~7-binding
+  adapter is fit for eICU, including its *minutes-since-admission offset* time
+  encoding, absorbed entirely by the adapter's `WITHIN` predicate while the core
+  `filter` op is untouched.
+- **Backward interference == 0 by construction** — adding the eICU adapter leaves
+  the MIMIC-III adapter (and its answer) byte-for-byte unchanged.
+
+## Run it
+
+```bash
+python -m venv .venv
+.venv/Scripts/python -m pip install -r requirements.txt   # Windows
+# source .venv/bin/activate && pip install -r requirements.txt   # POSIX
+
+python demo.py          # full MIMIC-III → eICU walkthrough
+python -m pytest -q     # 11 tests
+python -m strata.db     # (optional) materialize the SQLite fixtures under data/
+```
+
+## Notes and scope
+
+- The databases are **synthetic fixtures** with the real conventions (table/column
+  names, code vocabularies, and the two different time encodings). Real MIMIC-III /
+  eICU are credentialed; the framework connects to any SQLite database with the
+  expected shape. `diagnoses_icd` has no per-row timestamp in real MIMIC-III — a
+  `charttime` is added here to make the time-window step exercisable, following the
+  proposal's Appendix A model.
+- NL parsing is deterministic by default so the agent runs offline. Set
+  `STRATA_USE_LLM=1` (with Claude credentials configured) to route parsing through
+  the model; it falls back to the deterministic parser otherwise.
+- This is a reference implementation of the mechanism, not the full experimental
+  harness — the phased plan (baselines, core-mass spectra, adapter-budget sweeps)
+  in the proposal is future work built on these primitives.
