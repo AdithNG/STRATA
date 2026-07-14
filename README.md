@@ -24,8 +24,10 @@ transferred from **MIMIC-III** to **eICU** by re-fitting only the adapter.
 | Synthetic databases | [strata/db.py](strata/db.py) | MIMIC-III- and eICU-shaped SQLite fixtures |
 | **LangGraph agent** | [strata/graph.py](strata/graph.py) | `parse → cut → bind_adapter → compile → verify → respond` |
 | NL parsing | [strata/nlu.py](strata/nlu.py) | Deterministic by default; optional Claude path |
+| Adaptation-cost model | [strata/cost.py](strata/cost.py) | Four transfer strategies + a tunable edit-cost proxy |
 | Demo | [demo.py](demo.py) | The full MIMIC-III → eICU walkthrough |
-| Tests | [tests/](tests/) | Cut classification, transfer, and zero-interference |
+| Benchmark | [bench.py](bench.py) | Adaptation cost + observed correctness across strategies |
+| Tests | [tests/](tests/) | Cut classification, transfer, zero-interference, and cost |
 
 ## The agent graph
 
@@ -87,6 +89,29 @@ To add a new site: drop `adapters/<site>.json` with the seven slot bindings and 
 - **Backward interference == 0 by construction** — adding the eICU adapter leaves
   the MIMIC-III adapter (and its answer) byte-for-byte unchanged.
 
+## Adaptation cost (the headline metric)
+
+`bench.py` transfers the skill MIMIC-III → eICU under four strategies, runs each
+against the eICU database, and reports re-fit cost against *observed* correctness:
+
+| strategy | edit cost | vs from-scratch | result |
+|----------|----------:|----------------:|--------|
+| from_scratch | 18 | 100% | correct |
+| whole_skill | 18 | 100% | correct (risks negative transfer) |
+| **strata** | **3** | **17%** | **correct** |
+| random_cut | 7.5 | 42% | **0/8 correct** |
+
+STRATA re-fits only the 3 adapter units (freezing the 5 core steps) at 17% of
+from-scratch cost, and stays correct. The random cut is *cheaper than* from-scratch
+too — but freezing whole units without the typed op/hole separation strands
+MIMIC-III's constants and fails on every seed. **The saving comes from the
+*decidable* cut, not from freezing per se.**
+
+Cost is a transparent, tunable proxy for optimizer edits (`CORE_WEIGHT` /
+`ADAPTER_WEIGHT` in [strata/cost.py](strata/cost.py)) — not LLM token cost yet;
+wiring a real optimizer in is the next step. The qualitative result is robust to
+the weights.
+
 ## Run it
 
 ```bash
@@ -95,7 +120,8 @@ python -m venv .venv
 # source .venv/bin/activate && pip install -r requirements.txt   # POSIX
 
 python demo.py          # full MIMIC-III → eICU walkthrough
-python -m pytest -q     # 11 tests
+python bench.py         # adaptation-cost benchmark across strategies
+python -m pytest -q     # 21 tests
 python -m strata.db     # (optional) materialize the SQLite fixtures under data/
 ```
 

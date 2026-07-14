@@ -103,11 +103,14 @@ git push
 
 Rough order, matching the phased plan in [TSAGENT_EVOLVE_SKILLS.md](TSAGENT_EVOLVE_SKILLS.md):
 
-- **Measured adaptation cost (headline).** Replace hand-written adapter bindings
-  with a real skill optimizer, so "fit the adapter" is a measured token/edit cost
-  vs. from-scratch full optimization.
-- **Baselines.** Add whole-skill transfer and the **random-cut** baseline so
-  "the *decidable* cut matters" is measurable, not asserted.
+- **Measured adaptation cost (headline).** *Done as a proxy* — [strata/cost.py](strata/cost.py)
+  + [bench.py](bench.py) score four strategies by a tunable edit-cost model and by
+  observed correctness (STRATA 17% of from-scratch, correct; random cut cheap but
+  0/8 correct). **Still open:** replace the edit-cost proxy with a real skill
+  optimizer so the number is measured LLM tokens/edits, not a model.
+- **Baselines.** *Done* — whole-skill transfer and the **random-cut** baseline are
+  in the benchmark; the random cut fails on every seed, so "the *decidable* cut
+  matters" is observed, not asserted.
 - **Cut-validity metric.** Check that the statically-decided core actually
   transfers (agreement with a held-out cross-environment reusability estimate).
 - **Second domain.** Cross-schema text-to-SQL (BIRD/Spider) — also probes where
