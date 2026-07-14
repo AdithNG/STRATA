@@ -21,10 +21,10 @@ from typing import Annotated, List, Optional, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-from strata import db
-from strata.adapters import ADAPTERS, Adapter
+from strata import db, loader
+from strata.adapters import Adapter
 from strata.compiler import CompiledSQL, compile_sql
-from strata.ir import COHORT_COUNT_SKILL, Class, Skill, Unit, core_mass, cut
+from strata.ir import Class, Skill, Unit, core_mass, cut
 from strata.nlu import parse_question
 from strata.verifier import Result, verify
 
@@ -48,8 +48,14 @@ def _connect(state: AgentState) -> sqlite3.Connection:
     return db.connect(state["site"])
 
 
-def build_agent(skill: Skill = COHORT_COUNT_SKILL):
-    """Compile and return the STRATA agent graph for a given (frozen) skill."""
+def build_agent(skill: Skill | None = None):
+    """Compile and return the STRATA agent graph for a given (frozen) skill.
+
+    Defaults to the loader's default skill (from ``skills/*.json`` when present,
+    else the hardcoded fallback).
+    """
+    if skill is None:
+        skill = loader.DEFAULT_SKILL
 
     def parse_task(state: AgentState) -> AgentState:
         condition, n_days = parse_question(state["question"])
@@ -75,9 +81,9 @@ def build_agent(skill: Skill = COHORT_COUNT_SKILL):
 
     def bind_adapter(state: AgentState) -> AgentState:
         site = state["site"]
-        if site not in ADAPTERS:
+        if site not in loader.ADAPTERS:
             raise KeyError(f"no adapter fitted for environment {site!r}")
-        adapter = ADAPTERS[site]
+        adapter = loader.ADAPTERS[site]
         return {
             "adapter": adapter,
             "log": [f"bind_adapter: {site} -> {dict(adapter.bindings)}"],

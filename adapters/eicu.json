@@ -1,0 +1,18 @@
+{
+  "name": "eICU",
+  "time_unit": "offset_minutes",
+  "bindings": {
+    "VOCAB": "ICD(mixed,string)",
+    "DX_TABLE": "diagnosis",
+    "CODE_COL": "icd9code",
+    "ADM_TABLE": "patient",
+    "PATIENT_KEY": "patienthealthsystemstayid",
+    "TIME_EXPR": "diagnosisoffset",
+    "WITHIN": "diagnosisoffset BETWEEN 0 AND N*24*60"
+  },
+  "vocab_map": {
+    "sepsis": ["995.91", "995.92", "785.52"],
+    "pneumonia": ["486", "482.41", "507.0"],
+    "diabetes": ["250.00", "250.01"]
+  }
+}

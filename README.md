@@ -17,6 +17,7 @@ transferred from **MIMIC-III** to **eICU** by re-fitting only the adapter.
 | Piece | File | Role |
 |-------|------|------|
 | Typed IR + **decidable cut** | [strata/ir.py](strata/ir.py) | The skill as an ordered IR; a static taint rule that labels each unit `core` / `adapter` / `unclassifiable` |
+| Skill / adapter loader | [strata/loader.py](strata/loader.py) | Loads skills and adapters from JSON data files (see below) |
 | Convention adapters | [strata/adapters.py](strata/adapters.py) | MIMIC-III and eICU bindings — the only thing that changes between sites |
 | SQL compiler | [strata/compiler.py](strata/compiler.py) | Composes `core → adapter_c` into executable SQL |
 | Execution verifier | [strata/verifier.py](strata/verifier.py) | Runs the SQL and enforces the core's sanity check |
@@ -50,6 +51,29 @@ limit the proposal reports honestly, counted rather than forced into the adapter
 For the cohort-count skill the cut yields a 5-of-8 core-mass: `join`,
 `filter_window`, `dedup`, `count`, `sanity` are frozen; only `resolve_codes`,
 `pick_dx`, `pick_adm` re-fit per site.
+
+## Where the skills and adapters live
+
+Skills and adapters are **data files**, not hardcoded — adding a task or a site is
+a JSON file, not a code change. The cut, compiler, and graph never change.
+
+```
+skills/cohort_count.json      # the skill IR (slots + ordered steps)
+adapters/mimic_iii.json       # one site's typed bindings
+adapters/eicu.json
+```
+
+At startup the loader reads both directories and builds the same `Skill` /
+`Adapter` objects the code would; file definitions override the hardcoded
+fallbacks in `ir.py` / `adapters.py` on a name clash, so the framework still runs
+if the files are absent. A skill file is an ordered list of typed steps plus the
+environment slots; an adapter file binds every slot to a concrete symbol for one
+site and picks a `time_unit` (`timestamp` vs `offset_minutes`) that drives the
+dialect-specific `WITHIN` predicate. This JSON shape is the contract for a **skill
+dataset** — e.g. one entry per data environment.
+
+To add a new site: drop `adapters/<site>.json` with the seven slot bindings and a
+`time_unit`; the agent can then target it by name with no code change.
 
 ## What the demo shows
 

@@ -1,0 +1,18 @@
+{
+  "name": "MIMIC-III",
+  "time_unit": "timestamp",
+  "bindings": {
+    "VOCAB": "ICD9",
+    "DX_TABLE": "diagnoses_icd",
+    "CODE_COL": "icd9_code",
+    "ADM_TABLE": "admissions",
+    "PATIENT_KEY": "subject_id",
+    "TIME_EXPR": "charttime",
+    "WITHIN": "charttime BETWEEN admittime AND admittime + N days"
+  },
+  "vocab_map": {
+    "sepsis": ["99591", "99592", "78552"],
+    "pneumonia": ["486", "48241", "5070"],
+    "diabetes": ["25000", "25001"]
+  }
+}

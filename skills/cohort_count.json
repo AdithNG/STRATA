@@ -1,0 +1,24 @@
+{
+  "name": "cohort_count",
+  "task_params": ["condition", "N"],
+  "slots": [
+    {"name": "VOCAB", "type": "vocab", "description": "diagnosis code vocabulary (e.g. ICD-9)"},
+    {"name": "DX_TABLE", "type": "table", "description": "diagnoses table"},
+    {"name": "CODE_COL", "type": "column", "description": "diagnosis-code column on the diagnoses table"},
+    {"name": "ADM_TABLE", "type": "table", "description": "admissions table"},
+    {"name": "PATIENT_KEY", "type": "column", "description": "distinct-patient identifier"},
+    {"name": "TIME_EXPR", "type": "column", "description": "diagnosis-time column/expression"},
+    {"name": "WITHIN", "type": "predicate", "description": "within-N-days-of-admission dialect predicate"}
+  ],
+  "steps": [
+    {"id": "resolve_codes", "op": "resolve", "produces": "codes", "value_slots": ["VOCAB"], "structural_slots": [], "note": "resolve the condition to codes in the site's vocabulary"},
+    {"id": "pick_dx", "op": "table", "produces": "dx", "value_slots": ["DX_TABLE"], "structural_slots": [], "note": "select the diagnoses table"},
+    {"id": "pick_adm", "op": "table", "produces": "adm", "value_slots": ["ADM_TABLE"], "structural_slots": [], "note": "select the admissions table"},
+    {"id": "join", "op": "join", "produces": "joined", "value_slots": ["PATIENT_KEY"], "structural_slots": [], "note": "join diagnoses to admissions on the patient key"},
+    {"id": "filter_window", "op": "filter", "produces": "filtered", "value_slots": ["WITHIN", "TIME_EXPR"], "structural_slots": [], "note": "keep diagnoses within N days of admission"},
+    {"id": "dedup", "op": "dedup", "produces": "uniq", "value_slots": ["PATIENT_KEY"], "structural_slots": [], "note": "deduplicate to distinct patients (a patient has many rows)"},
+    {"id": "count", "op": "count_distinct", "produces": "n", "value_slots": ["PATIENT_KEY"], "structural_slots": [], "note": "count distinct patients"},
+    {"id": "sanity", "op": "assert", "produces": "checked", "value_slots": ["PATIENT_KEY"], "structural_slots": [], "note": "assert count <= number of admitted patients"}
+  ],
+  "nl_sketch": "Resolve the condition to codes in the site vocabulary. Join the diagnoses table to\nthe admissions table on the patient key. Keep diagnoses within N days of admission.\nDeduplicate to distinct patients (a patient may have many diagnosis rows). Count\ndistinct patients. Check the count does not exceed the number of admitted patients."
+}
