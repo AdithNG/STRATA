@@ -2,13 +2,13 @@
   "name": "cohort_count",
   "task_params": ["condition", "N"],
   "slots": [
-    {"name": "VOCAB", "type": "vocab", "description": "diagnosis code vocabulary (e.g. ICD-9)"},
+    {"name": "VOCAB", "type": "vocab", "description": "diagnosis code vocabulary (e.g. ICD-9)", "kind": "implementation"},
     {"name": "DX_TABLE", "type": "table", "description": "diagnoses table"},
     {"name": "CODE_COL", "type": "column", "description": "diagnosis-code column on the diagnoses table"},
     {"name": "ADM_TABLE", "type": "table", "description": "admissions table"},
     {"name": "PATIENT_KEY", "type": "column", "description": "distinct-patient identifier"},
     {"name": "TIME_EXPR", "type": "column", "description": "diagnosis-time column/expression"},
-    {"name": "WITHIN", "type": "predicate", "description": "within-N-days-of-admission dialect predicate"}
+    {"name": "WITHIN", "type": "predicate", "description": "within-N-days-of-admission dialect predicate", "kind": "implementation"}
   ],
   "steps": [
     {"id": "resolve_codes", "op": "resolve", "produces": "codes", "value_slots": ["VOCAB"], "structural_slots": [], "note": "resolve the condition to codes in the site's vocabulary"},

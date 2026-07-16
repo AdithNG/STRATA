@@ -44,11 +44,25 @@ class Class(str, Enum):
 
 @dataclass(frozen=True)
 class Slot:
-    """A typed environment constant -- the taint source of the cut."""
+    """A typed environment-bound entity -- the taint source of the cut.
+
+    Under the interface/instance model, a slot's filler is not only a constant.
+    ``kind`` records what an instance may put here:
+
+    * ``constant``       -- a literal binding (a table or column identifier).
+    * ``implementation`` -- arbitrary code behind a fixed signature (e.g. the
+      time-window predicate: absolute timestamps vs. minute offsets). Lets the
+      convention layer absorb *structural* variation, not just renaming.
+    * ``contract``       -- an invariant any valid instance must preserve.
+
+    Discovery treats these differently: constants resolve by catalog name-matching;
+    implementations are filled by typed synthesis confirmed by execution.
+    """
 
     name: str
     type: str  # e.g. "table", "column", "vocab", "predicate"
     description: str = ""
+    kind: str = "constant"  # "constant" | "implementation" | "contract"
 
 
 @dataclass(frozen=True)
@@ -155,13 +169,13 @@ def unclassifiable_fraction(units: List[Unit]) -> float:
 # ---------------------------------------------------------------------------
 
 _SLOTS = (
-    Slot("VOCAB", "vocab", "diagnosis code vocabulary (e.g. ICD-9)"),
+    Slot("VOCAB", "vocab", "diagnosis code vocabulary (e.g. ICD-9)", kind="implementation"),
     Slot("DX_TABLE", "table", "diagnoses table"),
     Slot("CODE_COL", "column", "diagnosis-code column on the diagnoses table"),
     Slot("ADM_TABLE", "table", "admissions table"),
     Slot("PATIENT_KEY", "column", "distinct-patient identifier"),
     Slot("TIME_EXPR", "column", "diagnosis-time column/expression"),
-    Slot("WITHIN", "predicate", "within-N-days-of-admission dialect predicate"),
+    Slot("WITHIN", "predicate", "within-N-days-of-admission dialect predicate", kind="implementation"),
 )
 
 _STEPS = (

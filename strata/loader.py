@@ -32,7 +32,8 @@ ADAPTERS_DIR = os.path.join(_ROOT, "adapters")
 
 def skill_from_dict(d: dict) -> Skill:
     slots = tuple(
-        Slot(s["name"], s["type"], s.get("description", "")) for s in d["slots"]
+        Slot(s["name"], s["type"], s.get("description", ""), kind=s.get("kind", "constant"))
+        for s in d["slots"]
     )
     steps = tuple(
         Step(

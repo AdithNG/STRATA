@@ -3,3 +3,6 @@ __pycache__/
 *.pyc
 data/*.sqlite
 .pytest_cache/
+# Secrets — never commit. Local only.
+.env
+*.env

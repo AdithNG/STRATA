@@ -11,8 +11,10 @@ The virtualenv already exists (`.venv/`). You don't reinstall each time — just
 cd STRATA
 
 # Windows (PowerShell / Git Bash)
-.venv/Scripts/python -m pytest -q     # 15 tests, ~1s — confirms nothing is broken
-.venv/Scripts/python demo.py          # end-to-end MIMIC-III -> eICU walkthrough
+.venv/Scripts/python -m pytest -q      # 25 tests, ~1s — confirms nothing is broken
+.venv/Scripts/python demo.py           # end-to-end MIMIC-III -> eICU walkthrough
+.venv/Scripts/python bench.py          # adaptation-cost benchmark
+.venv/Scripts/python -m strata.discover  # recover each site's adapter from its DB
 
 # macOS / Linux
 .venv/bin/python -m pytest -q
@@ -39,8 +41,10 @@ strata/
   compiler.py   # core + adapter  ->  SQL
   verifier.py   # run SQL, enforce the core's sanity check
   db.py         # synthetic MIMIC-III / eICU SQLite fixtures
-  nlu.py        # question -> (condition, N); deterministic, optional Claude path
+  nlu.py        # question -> (condition, N); deterministic, optional OpenAI path
   loader.py     # load skills/adapters from JSON; merges files over fallbacks
+  cost.py       # transfer strategies + tunable adaptation-cost model
+  discover.py   # recover a site's adapter from its DB (introspection + execution)
   graph.py      # the LangGraph agent (parse -> cut -> bind -> compile -> verify -> respond)
 skills/*.json   # skill definitions (the IR as data)
 adapters/*.json # per-site typed bindings (the data-driven adapters)
@@ -113,8 +117,23 @@ Rough order, matching the phased plan in [TSAGENT_EVOLVE_SKILLS.md](TSAGENT_EVOL
   matters" is observed, not asserted.
 - **Cut-validity metric.** Check that the statically-decided core actually
   transfers (agreement with a held-out cross-environment reusability estimate).
-- **Second domain.** Cross-schema text-to-SQL (BIRD/Spider) — also probes where
-  the core shrinks as SQL knowledge moves into weights.
-- **Real data.** Move from synthetic fixtures to credentialed MIMIC-III / eICU.
+- **Instance discovery.** *Done for the schema case* — [strata/discover.py](strata/discover.py)
+  recovers a site's adapter from its database by catalog introspection (constant
+  slots) plus execution-confirmed slot-filling (implementation slots), reproducing
+  the correct counts at 1–4 verifier executions. **Still open:** LLM synthesis for
+  implementation slots (instead of a fixed candidate pool), and GUI/tool catalogs.
+- **Second domain.** Cross-schema text-to-SQL (BIRD/Spider), then the tool/MCP
+  workflow axis from Appendix B (GitHub → Jira) — the interface-generalization
+  domain that makes STRATA an agent-skill theory, not a text-to-SQL result.
+- **Real data.** Move from synthetic fixtures to credentialed MIMIC-III / eICU
+  (EHRSQL), and add the OMOP/OHDSI common-data-model baseline.
 - **Team interface.** Align the `skills/` + `adapters/` JSON format with Kratika's
   skill dataset so it plugs straight into the loader.
+
+## Optional LLM path (OpenAI)
+
+`STRATA_USE_LLM=1` routes NL question parsing through OpenAI. The key is read from
+`OPENAI_API_KEY` (never hardcoded — a committed key leaks permanently in git
+history). Set it locally: `setx OPENAI_API_KEY "sk-..."` (Windows) or
+`export OPENAI_API_KEY="sk-..."` (POSIX); override the model with `OPENAI_MODEL`.
+Install the optional dep: `.venv/Scripts/python -m pip install openai`.

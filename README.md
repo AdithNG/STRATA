@@ -25,6 +25,7 @@ transferred from **MIMIC-III** to **eICU** by re-fitting only the adapter.
 | **LangGraph agent** | [strata/graph.py](strata/graph.py) | `parse → cut → bind_adapter → compile → verify → respond` |
 | NL parsing | [strata/nlu.py](strata/nlu.py) | Deterministic by default; optional Claude path |
 | Adaptation-cost model | [strata/cost.py](strata/cost.py) | Four transfer strategies + a tunable edit-cost proxy |
+| Instance discovery | [strata/discover.py](strata/discover.py) | Recover a site's adapter from its database by introspection + execution |
 | Demo | [demo.py](demo.py) | The full MIMIC-III → eICU walkthrough |
 | Benchmark | [bench.py](bench.py) | Adaptation cost + observed correctness across strategies |
 | Tests | [tests/](tests/) | Cut classification, transfer, zero-interference, and cost |
@@ -111,6 +112,30 @@ Cost is a transparent, tunable proxy for optimizer edits (`CORE_WEIGHT` /
 `ADAPTER_WEIGHT` in [strata/cost.py](strata/cost.py)) — not LLM token cost yet;
 wiring a real optimizer in is the next step. The qualitative result is robust to
 the weights.
+
+## Instance discovery (fit a site's adapter with no hand-written bindings)
+
+The sharpened proposal reframes an environment as an *instance of an abstract typed
+interface* and puts adaptation cost in **instance discovery**: run the frozen core
+against a new site, resolve each typed slot against the environment's catalog, and
+confirm by execution. `strata/discover.py` does this — given only a site's database
+it recovers the adapter and reproduces the correct cohort count:
+
+```
+MIMIC-III:  DX=diagnoses_icd KEY=subject_id TIME=charttime impl(WITHIN)=timestamp
+            cohort count = 5  |  discovery cost = 1 verifier execution
+eICU:       DX=diagnosis KEY=patienthealthsystemstayid TIME=diagnosisoffset
+            impl(WITHIN)=offset_minutes  cohort count = 3  |  discovery cost = 4
+```
+
+Constant slots (identifiers) resolve by typed name-matching against the schema;
+**implementation slots** — the time-window predicate and the code vocabulary,
+marked `kind: "implementation"` on the skill — are filled from a small typed
+candidate pool and selected by execution against the core's contract. The eICU
+minutes-offset time encoding is *discovered*, not hand-set. Discovery cost (1 and 4
+verifier executions) is far below the from-scratch proxy (18).
+
+Run: `python -m strata.discover`
 
 ## Run it
 
