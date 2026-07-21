@@ -41,6 +41,7 @@ def skill_from_dict(d: dict) -> Skill:
             op=s["op"],
             produces=s["produces"],
             value_slots=tuple(s.get("value_slots", [])),
+            inputs=tuple(s.get("inputs", [])),
             structural_slots=tuple(s.get("structural_slots", [])),
             note=s.get("note", ""),
         )

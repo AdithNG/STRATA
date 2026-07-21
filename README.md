@@ -16,7 +16,8 @@ transferred from **MIMIC-III** to **eICU** by re-fitting only the adapter.
 
 | Piece | File | Role |
 |-------|------|------|
-| Typed IR + **decidable cut** | [strata/ir.py](strata/ir.py) | The skill as an ordered IR; a static taint rule that labels each unit `core` / `adapter` / `unclassifiable` |
+| Typed IR + **decidable cut** | [strata/ir.py](strata/ir.py) | The skill as an ordered IR; taint propagation over def-use edges labels each unit `core` / `adapter` / `unclassifiable` |
+| Cut validity | [strata/validity.py](strata/validity.py) | Does the frozen decided-core actually transfer? (vs a random cut) |
 | Skill / adapter loader | [strata/loader.py](strata/loader.py) | Loads skills and adapters from JSON data files (see below) |
 | Convention adapters | [strata/adapters.py](strata/adapters.py) | MIMIC-III and eICU bindings — the only thing that changes between sites |
 | SQL compiler | [strata/compiler.py](strata/compiler.py) | Composes `core → adapter_c` into executable SQL |
@@ -41,19 +42,38 @@ Re-targeting the skill to a new site changes only which adapter `bind_adapter`
 selects. The frozen core, the cut, and every other node are unchanged — that is
 the mechanism, made executable.
 
-## The decidable cut
+## The decidable cut (taint propagation)
 
-A unit belongs to the **adapter** iff its operation's purpose is to instantiate a
-typed environment constant (`resolve` a vocabulary, pick a `table`). Every
-procedure-algebra op (`join`, `filter`, `dedup`, `count_distinct`, `assert`) is
-**core** — the reusable discipline — even when it references a slot as a typed
-hole (the join key, the dialect time predicate). A procedure step whose *control
-flow* depends on an environment constant is **unclassifiable** — the decidability
-limit the proposal reports honestly, counted rather than forced into the adapter.
+The cut is a def-use **taint analysis**. The environment-bound slots are taint
+sources. A binding op (`resolve`, `table`) *propagates* taint: its output is a
+convention value, tainted if it references a slot or consumes a tainted value (a
+binding chain). A procedure-algebra op (`join`, `filter`, `dedup`,
+`count_distinct`, `assert`) *launders* taint: it transforms tainted arguments into
+task data, so its output is never tainted — which is what lets a core op carry an
+adapter-bound hole (the join key, the dialect predicate) without becoming adapter
+itself. A unit is **adapter** iff its output is tainted, **core** otherwise; a
+procedure step whose *control flow* depends on a slot is **unclassifiable** — the
+decidability limit, counted rather than forced into the adapter.
 
 For the cohort-count skill the cut yields a 5-of-8 core-mass: `join`,
 `filter_window`, `dedup`, `count`, `sanity` are frozen; only `resolve_codes`,
 `pick_dx`, `pick_adm` re-fit per site.
+
+## Cut validity (the primary metric)
+
+Does the statically-decided core actually transfer when frozen? `strata/validity.py`
+answers by execution: freeze the decided core, fit only the adapter (by discovery),
+run on each held-out site.
+
+```
+decided-cut validity : 100%   (frozen core transfers on MIMIC-III and eICU)
+random-cut validity  :   0%   (freezing a random same-size unit set)
+```
+
+The decided cut's frozen core transfers where a random cut of the same size does
+not, so the reported core-mass is a valid prediction, not an artifact of freezing
+something. Each adapter-labelled unit is separately confirmed environment-specific
+(freezing its binding breaks eICU). Run: `python -m strata.validity`
 
 ## Where the skills and adapters live
 
@@ -146,7 +166,8 @@ python -m venv .venv
 
 python demo.py          # full MIMIC-III → eICU walkthrough
 python bench.py         # adaptation-cost benchmark across strategies
-python -m pytest -q     # 21 tests
+python -m pytest -q     # 32 tests
+python -m strata.validity  # cut-validity: frozen decided-core vs random cut
 python -m strata.db     # (optional) materialize the SQLite fixtures under data/
 ```
 

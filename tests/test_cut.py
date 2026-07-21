@@ -4,10 +4,12 @@ from strata.ir import (
     COHORT_COUNT_SKILL,
     Class,
     Skill,
+    Slot,
     Step,
     classify,
     core_mass,
     cut,
+    taint_map,
     unclassifiable_fraction,
 )
 
@@ -59,3 +61,36 @@ def test_structural_slot_dependency_is_unclassifiable():
 
 def test_cut_is_deterministic():
     assert cut(COHORT_COUNT_SKILL) == cut(COHORT_COUNT_SKILL)
+
+
+def test_taint_map_matches_appendix_a():
+    t = taint_map(COHORT_COUNT_SKILL)
+    # binding ops produce tainted convention values; core ops launder to task data
+    assert t["resolve_codes"] and t["pick_dx"] and t["pick_adm"]
+    assert not any(t[i] for i in ("join", "filter_window", "dedup", "count", "sanity"))
+
+
+def test_taint_propagates_through_binding_chain():
+    # A binding op with NO direct slot but consuming a tainted value is adapter by
+    # PROPAGATION -- this is what makes it real taint analysis, not op-category.
+    skill = Skill(
+        name="chain",
+        task_params=(),
+        slots=(Slot("SRC", "id"),),
+        steps=(
+            Step("a", "resolve", "a", value_slots=("SRC",)),          # tainted source
+            Step("b", "resolve", "b", inputs=("a",)),                  # no slot; tainted via a
+            Step("c", "count_distinct", "c", inputs=("b",)),           # core op launders
+        ),
+    )
+    t = taint_map(skill)
+    assert t == {"a": True, "b": True, "c": False}
+    units = {u.step.id: u.cls for u in cut(skill)}
+    assert units["b"] is Class.ADAPTER          # propagated taint, no direct slot
+    assert units["c"] is Class.CORE             # laundered despite tainted input
+
+
+def test_untainted_binding_is_core():
+    # A binding op referencing nothing environment-bound is environment-independent.
+    skill = Skill("k", (), (), (Step("x", "resolve", "x"),))
+    assert cut(skill)[0].cls is Class.CORE

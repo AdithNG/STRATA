@@ -11,7 +11,7 @@ The virtualenv already exists (`.venv/`). You don't reinstall each time — just
 cd STRATA
 
 # Windows (PowerShell / Git Bash)
-.venv/Scripts/python -m pytest -q      # 25 tests, ~1s — confirms nothing is broken
+.venv/Scripts/python -m pytest -q      # 32 tests, ~1s — confirms nothing is broken
 .venv/Scripts/python demo.py           # end-to-end MIMIC-III -> eICU walkthrough
 .venv/Scripts/python bench.py          # adaptation-cost benchmark
 .venv/Scripts/python -m strata.discover  # recover each site's adapter from its DB
@@ -45,6 +45,7 @@ strata/
   loader.py     # load skills/adapters from JSON; merges files over fallbacks
   cost.py       # transfer strategies + tunable adaptation-cost model
   discover.py   # recover a site's adapter from its DB (introspection + execution)
+  validity.py   # cut validity: does the frozen decided-core transfer? (vs random cut)
   graph.py      # the LangGraph agent (parse -> cut -> bind -> compile -> verify -> respond)
 skills/*.json   # skill definitions (the IR as data)
 adapters/*.json # per-site typed bindings (the data-driven adapters)
@@ -107,6 +108,14 @@ git push
 
 Rough order, matching the phased plan in [TSAGENT_EVOLVE_SKILLS.md](TSAGENT_EVOLVE_SKILLS.md):
 
+- **Cut validity (primary metric).** *Done* — [strata/validity.py](strata/validity.py)
+  freezes the decided core, fits only the adapter by discovery, and checks transfer
+  on held-out sites (100%) against a random-cut baseline (0%). **Open:** a
+  structural-shift target that drops validity below 100%, to exercise the
+  decidability limit end to end.
+- **Decidable cut as taint propagation.** *Done* — the cut is now a def-use taint
+  analysis (binding ops propagate, procedure ops launder), not op-category
+  matching; see [strata/ir.py](strata/ir.py) `taint_map`.
 - **Measured adaptation cost (headline).** *Done as a proxy* — [strata/cost.py](strata/cost.py)
   + [bench.py](bench.py) score four strategies by a tunable edit-cost model and by
   observed correctness (STRATA 17% of from-scratch, correct; random cut cheap but
