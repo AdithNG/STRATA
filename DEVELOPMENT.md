@@ -11,7 +11,7 @@ The virtualenv already exists (`.venv/`). You don't reinstall each time — just
 cd STRATA
 
 # Windows (PowerShell / Git Bash)
-.venv/Scripts/python -m pytest -q      # 35 tests, ~1s — confirms nothing is broken
+.venv/Scripts/python -m pytest -q      # 41 tests, ~1s — confirms nothing is broken
 .venv/Scripts/python demo.py           # end-to-end MIMIC-III -> eICU walkthrough
 .venv/Scripts/python bench.py          # adaptation-cost benchmark
 .venv/Scripts/python -m strata.discover  # recover each site's adapter from its DB
@@ -79,8 +79,8 @@ New op kinds go in `ir.py`: add to `BINDING_OPS` (adapter) or `CORE_OPS` (core),
 and teach `compiler.py` how to emit SQL for it.
 
 ### Turn on the LLM parse path
-`STRATA_USE_LLM=1` routes question parsing through Claude (needs `anthropic`
-installed and credentials configured); it falls back to the deterministic parser.
+`STRATA_USE_LLM=1` routes question parsing through OpenAI (see the Optional LLM
+path section below); it falls back to the deterministic parser.
 
 ## Verifying a change
 
@@ -125,16 +125,17 @@ Rough order, matching the phased plan in [TSAGENT_EVOLVE_SKILLS.md](TSAGENT_EVOL
 - **Baselines.** *Done* — whole-skill transfer and the **random-cut** baseline are
   in the benchmark; the random cut fails on every seed, so "the *decidable* cut
   matters" is observed, not asserted.
-- **Cut-validity metric.** Check that the statically-decided core actually
-  transfers (agreement with a held-out cross-environment reusability estimate).
 - **Instance discovery.** *Done for the schema case* — [strata/discover.py](strata/discover.py)
   recovers a site's adapter from its database by catalog introspection (constant
   slots) plus execution-confirmed slot-filling (implementation slots), reproducing
   the correct counts at 1–4 verifier executions. **Still open:** LLM synthesis for
   implementation slots (instead of a fixed candidate pool), and GUI/tool catalogs.
-- **Second domain.** Cross-schema text-to-SQL (BIRD/Spider), then the tool/MCP
-  workflow axis from Appendix B (GitHub → Jira) — the interface-generalization
-  domain that makes STRATA an agent-skill theory, not a text-to-SQL result.
+- **Second domain.** *Tool/MCP done* — [strata/toolflow.py](strata/toolflow.py)
+  implements Appendix B (GitHub → Jira) on the same IR/cut/slot machinery: the
+  idempotency+verify discipline is the frozen core, `FIND` is a typed-implementation
+  slot absorbing single-vs-paginated search, verified by sandboxed execution.
+  **Open:** cross-schema text-to-SQL (BIRD/Spider); real MCP servers instead of
+  in-memory trackers.
 - **Real data.** Move from synthetic fixtures to credentialed MIMIC-III / eICU
   (EHRSQL), and add the OMOP/OHDSI common-data-model baseline.
 - **Team interface.** Align the `skills/` + `adapters/` JSON format with Kratika's

@@ -27,6 +27,7 @@ transferred from **MIMIC-III** to **eICU** by re-fitting only the adapter.
 | NL parsing | [strata/nlu.py](strata/nlu.py) | Deterministic by default; optional Claude path |
 | Adaptation-cost model | [strata/cost.py](strata/cost.py) | Four transfer strategies + a tunable edit-cost proxy |
 | Instance discovery | [strata/discover.py](strata/discover.py) | Recover a site's adapter from its database by introspection + execution |
+| Tool-workflow domain | [strata/toolflow.py](strata/toolflow.py) | Appendix B (GitHub → Jira): same domain machinery on a tool ecosystem, not SQL |
 | Demo | [demo.py](demo.py) | The full MIMIC-III → eICU walkthrough |
 | Benchmark | [bench.py](bench.py) | Adaptation cost + observed correctness across strategies |
 | Tests | [tests/](tests/) | Cut classification, transfer, zero-interference, and cost |
@@ -164,6 +165,29 @@ verifier executions) is far below the from-scratch proxy (18).
 
 Run: `python -m strata.discover`
 
+## Second domain: cross-ecosystem tool workflow (Appendix B)
+
+The same IR / cut / slot-kind machinery, applied to a **tool ecosystem** instead of
+a database — the axis that makes STRATA an agent-skill result, not a text-to-SQL
+one. Task: *file a tracking issue for a failing check, assigned to the code owner,
+without creating a duplicate.*
+
+```
+decidable cut: core=['find_dup', 'guard', 'create_issue', 'verify']   (core-mass 0.80)
+               adapter=['resolve_owner']
+GitHub   single search   -> one issue, deduped, assignee correct   (find calls: 2)
+Jira     paginated search -> one issue, deduped, assignee correct   (find calls: 6)
+```
+
+The find-before-create idempotency discipline and the verify-after contract are the
+frozen core; only the adapter changes. `FIND` is a **typed-implementation slot** —
+GitHub resolves a duplicate with one search call, Jira with a paginated query
+(the differing find-call counts) — so the adapter absorbs a *structural* difference,
+not just a rename, while the core is frozen and its contract holds on both (checked
+by sandboxed execution: run twice, exactly one issue). An ecosystem needing
+create-then-transition flags `create_issue` unclassifiable (the decidability limit).
+Run: `python -m strata.toolflow`
+
 ## Run it
 
 ```bash
@@ -173,7 +197,8 @@ python -m venv .venv
 
 python demo.py          # full MIMIC-III → eICU walkthrough
 python bench.py         # adaptation-cost benchmark across strategies
-python -m pytest -q     # 35 tests
+python -m pytest -q     # 41 tests
+python -m strata.toolflow  # second domain: GitHub -> Jira tool workflow
 python -m strata.validity  # cut-validity: frozen decided-core vs random cut
 python -m strata.db     # (optional) materialize the SQLite fixtures under data/
 ```

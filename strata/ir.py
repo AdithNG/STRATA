@@ -39,8 +39,14 @@ from typing import List
 #
 # A unit is ADAPTER iff its output is tainted; CORE otherwise. Laundering is what
 # lets a core op carry an adapter-bound hole without becoming adapter itself.
-BINDING_OPS = frozenset({"resolve", "table"})
-CORE_OPS = frozenset({"join", "filter", "dedup", "count_distinct", "assert"})
+# SQL domain: resolve/table bind conventions; the rest are the procedure algebra.
+# Tool-workflow domain (Appendix B): resolve_owner binds a convention; find/guard/
+# create are the idempotency-and-verify discipline (procedure ops that launder,
+# carrying adapter-bound implementation holes like <FIND>). Adding a domain means
+# adding its ops here -- the cut, taint, and cost machinery are domain-agnostic.
+BINDING_OPS = frozenset({"resolve", "table", "resolve_owner"})
+CORE_OPS = frozenset({"join", "filter", "dedup", "count_distinct", "assert",
+                      "find", "guard", "create"})
 
 
 class Class(str, Enum):
