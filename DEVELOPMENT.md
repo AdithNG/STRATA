@@ -11,7 +11,7 @@ The virtualenv already exists (`.venv/`). You don't reinstall each time — just
 cd STRATA
 
 # Windows (PowerShell / Git Bash)
-.venv/Scripts/python -m pytest -q      # 32 tests, ~1s — confirms nothing is broken
+.venv/Scripts/python -m pytest -q      # 35 tests, ~1s — confirms nothing is broken
 .venv/Scripts/python demo.py           # end-to-end MIMIC-III -> eICU walkthrough
 .venv/Scripts/python bench.py          # adaptation-cost benchmark
 .venv/Scripts/python -m strata.discover  # recover each site's adapter from its DB
@@ -110,9 +110,10 @@ Rough order, matching the phased plan in [TSAGENT_EVOLVE_SKILLS.md](TSAGENT_EVOL
 
 - **Cut validity (primary metric).** *Done* — [strata/validity.py](strata/validity.py)
   freezes the decided core, fits only the adapter by discovery, and checks transfer
-  on held-out sites (100%) against a random-cut baseline (0%). **Open:** a
-  structural-shift target that drops validity below 100%, to exercise the
-  decidability limit end to end.
+  on held-out sites (100%) against a random-cut baseline (0%). *Negative control
+  done* — an `eICU-split` site (diagnoses across two tables) makes the frozen core
+  undercount, dropping validity to 67%, and a split-aware skill flags the offending
+  step `unclassifiable` (the decidability limit). So the metric is falsifiable.
 - **Decidable cut as taint propagation.** *Done* — the cut is now a def-use taint
   analysis (binding ops propagate, procedure ops launder), not op-category
   matching; see [strata/ir.py](strata/ir.py) `taint_map`.

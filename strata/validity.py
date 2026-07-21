@@ -30,11 +30,44 @@ from strata.adapters import EICU, MIMIC_III, Adapter
 from strata.compiler import compile_sql
 from strata.cost import _mixed_adapter, plan_adaptation
 from strata.discover import discover
-from strata.ir import COHORT_COUNT_SKILL, Class, Skill, cut
+from strata.ir import (
+    COHORT_COUNT_SKILL,
+    Class,
+    Skill,
+    Slot,
+    Step,
+    cut,
+    unclassifiable_fraction,
+)
 from strata.verifier import verify
 
 # Held-out target environments with their ground-truth cohort counts.
 DEFAULT_TARGETS: Tuple[Tuple[str, int], ...] = (("MIMIC-III", 5), ("eICU", 3))
+
+# A site that splits diagnoses across two tables: the frozen single-DX core
+# undercounts here (truth 4, single-table 2), so it is the validity negative control.
+STRUCTURAL_SHIFT: Tuple[str, int] = ("eICU-split", 4)
+
+
+def split_aware_skill(base: Skill = COHORT_COUNT_SKILL) -> Skill:
+    """A variant whose diagnoses-source step is declared structurally site-dependent.
+
+    An author who knows some sites split diagnoses across tables marks that step's
+    control flow as slot-dependent. The cut then flags it *unclassifiable* (neither
+    freezable core nor a simple adapter constant) instead of over-claiming it as a
+    constant, which is what avoids the silent undercount.
+    """
+    steps = tuple(
+        Step(s.id, s.op, s.produces, s.value_slots, s.inputs,
+             structural_slots=("DX_LAYOUT",) if s.id == "pick_dx" else s.structural_slots,
+             note=s.note)
+        for s in base.steps
+    )
+    slots = base.slots + (
+        Slot("DX_LAYOUT", "layout", "how diagnoses are partitioned across tables",
+             kind="contract"),
+    )
+    return Skill(base.name + "_split_aware", base.task_params, slots, steps, base.nl_sketch)
 
 
 def _run(adapter: Adapter, site: str, condition: str, n_days: int, skill: Skill) -> Optional[int]:
@@ -128,6 +161,25 @@ def _main() -> None:
     print("\nRead-out: the decided cut's frozen core transfers where a random cut of the")
     print("same size does not, so the core-mass the cut reports is a valid prediction,")
     print("not an artifact of freezing something.")
+
+    # Negative control: a structural shift the metric must be able to fail on.
+    site, truth = STRUCTURAL_SHIFT
+    shift = frozen_core_transfers(site, truth)
+    with_shift = cut_validity(DEFAULT_TARGETS + (STRUCTURAL_SHIFT,))
+    aware = split_aware_skill()
+    flagged = [u.step.id for u in cut(aware) if u.cls is Class.UNCLASSIFIABLE]
+    print("\n" + "-" * 68)
+    print("Negative control -- a structural shift (diagnoses split across two tables):")
+    print(f"  {site}: frozen core count={shift.count}, truth={truth}  ->  "
+          f"{'transfers' if shift.transfers else 'FAILS (silent undercount)'}")
+    print(f"  cut validity including the shift : {with_shift.decided_valid:.0%}  "
+          f"(so the metric is falsifiable, not vacuously 100%)")
+    print(f"  an author who declares the diagnoses source structural -> the cut flags "
+          f"{flagged} unclassifiable")
+    print(f"  decidability-limit fraction (split-aware skill): "
+          f"{unclassifiable_fraction(cut(aware)):.0%}")
+    print("  So the honest cut declines to freeze what it cannot prove transfers,")
+    print("  rather than over-claiming it and undercounting.")
 
 
 if __name__ == "__main__":

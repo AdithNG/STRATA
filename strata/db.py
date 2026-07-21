@@ -108,7 +108,60 @@ def build_eicu(conn: sqlite3.Connection) -> None:
     # Ground truth for sepsis within 7 days: patients {1001,1002,1003} = 3 distinct.
 
 
-BUILDERS = {"MIMIC-III": build_mimic, "eICU": build_eicu}
+def build_eicu_split(conn: sqlite3.Connection) -> None:
+    """An eICU-shaped site that SPLITS diagnoses across two tables.
+
+    Some real sites separate active vs. resolved diagnoses. Getting all diagnoses
+    then requires a UNION before the join -- a *structural* change to the
+    procedure, not a renaming. This is the decidability-limit case: the single-DX
+    frozen core cannot express it and silently undercounts, which is exactly what
+    the cut-validity negative control is meant to catch.
+    """
+    cur = conn.cursor()
+    cur.executescript(
+        """
+        DROP TABLE IF EXISTS patient;
+        DROP TABLE IF EXISTS diagnosis_active;
+        DROP TABLE IF EXISTS diagnosis_resolved;
+        CREATE TABLE patient (
+            patienthealthsystemstayid INTEGER,
+            uniquepid                 TEXT,
+            hospitaladmitoffset       INTEGER
+        );
+        CREATE TABLE diagnosis_active (
+            patienthealthsystemstayid INTEGER,
+            icd9code                  TEXT,
+            diagnosisoffset           INTEGER
+        );
+        CREATE TABLE diagnosis_resolved (
+            patienthealthsystemstayid INTEGER,
+            icd9code                  TEXT,
+            diagnosisoffset           INTEGER
+        );
+        """
+    )
+    patients = [(2000 + i, f"pid-{i}", 0) for i in range(1, 7)]  # 6 admitted
+    cur.executemany("INSERT INTO patient VALUES (?, ?, ?)", patients)
+
+    # Window = 10080 minutes (7 days).
+    active = [
+        (2001, "995.91", 120),    # within
+        (2002, "785.52", 60),     # within
+        (2005, "995.91", 11000),  # OUTSIDE window -> excluded
+    ]
+    resolved = [
+        (2003, "995.91", 200),    # within
+        (2004, "995.92", 500),    # within
+        (2001, "995.92", 1440),   # within, duplicate patient (already counted)
+    ]
+    cur.executemany("INSERT INTO diagnosis_active VALUES (?, ?, ?)", active)
+    cur.executemany("INSERT INTO diagnosis_resolved VALUES (?, ?, ?)", resolved)
+    conn.commit()
+    # Truth (UNION of both tables, distinct, within window): {2001,2002,2003,2004} = 4.
+    # Single-table core (diagnosis_active only): {2001,2002} = 2  -> undercount.
+
+
+BUILDERS = {"MIMIC-III": build_mimic, "eICU": build_eicu, "eICU-split": build_eicu_split}
 
 
 def connect(site: str, path: str | None = None) -> sqlite3.Connection:

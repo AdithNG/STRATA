@@ -73,7 +73,14 @@ random-cut validity  :   0%   (freezing a random same-size unit set)
 The decided cut's frozen core transfers where a random cut of the same size does
 not, so the reported core-mass is a valid prediction, not an artifact of freezing
 something. Each adapter-labelled unit is separately confirmed environment-specific
-(freezing its binding breaks eICU). Run: `python -m strata.validity`
+(freezing its binding breaks eICU).
+
+**The metric is falsifiable, not vacuously 100%.** On a structural-shift site
+(`eICU-split`, where diagnoses span two tables and correctly need a `UNION`), the
+frozen single-join core silently undercounts (2 vs a truth of 4), so validity
+drops to 67%. An author who declares that step structurally site-dependent gets it
+flagged **unclassifiable** (the decidability limit) rather than over-claiming it as
+a constant. Run: `python -m strata.validity`
 
 ## Where the skills and adapters live
 
@@ -166,7 +173,7 @@ python -m venv .venv
 
 python demo.py          # full MIMIC-III → eICU walkthrough
 python bench.py         # adaptation-cost benchmark across strategies
-python -m pytest -q     # 32 tests
+python -m pytest -q     # 35 tests
 python -m strata.validity  # cut-validity: frozen decided-core vs random cut
 python -m strata.db     # (optional) materialize the SQLite fixtures under data/
 ```
